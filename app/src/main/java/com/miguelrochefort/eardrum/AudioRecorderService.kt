@@ -5,11 +5,10 @@ import android.content.Context
 import android.content.Intent
 import android.media.MediaRecorder
 import android.os.Build
-import android.os.Environment
 import android.os.IBinder
+import android.os.SystemClock
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -35,9 +34,13 @@ class AudioRecorderService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startRecorder()
+        if (mediaRecorderStarted) {
+            stopRecorder()
+        } else {
+            startRecorder()
+        }
         setNextAlarm()
-        return START_STICKY;
+        return START_STICKY
     }
 
     override fun onDestroy() {
@@ -76,43 +79,54 @@ class AudioRecorderService : Service() {
             recorder?.reset()
         }
 
-        recorder?.setAudioSource(MediaRecorder.AudioSource.MIC);
-        recorder?.setOutputFormat(MediaRecorder.OutputFormat.OGG);
-        recorder?.setAudioEncoder(MediaRecorder.AudioEncoder.OPUS);
-        recorder?.setAudioEncodingBitRate(128000);
-        recorder?.setAudioSamplingRate(48000);
-        recorder?.setOutputFile(getFilePath());
+        recorder?.setAudioSource(MediaRecorder.AudioSource.MIC)
+        recorder?.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+        recorder?.setAudioEncoder(MediaRecorder.AudioEncoder.DEFAULT)
+        recorder?.setAudioEncodingBitRate(128000)
+        recorder?.setAudioSamplingRate(48000)
+        recorder?.setOutputFile(getFilePath())
         recorder?.prepare()
         recorder?.start()
         mediaRecorderStarted = true
     }
 
+    private fun stopRecorder() {
+        if (mediaRecorderStarted) {
+            recorder?.stop()
+            recorder?.reset()
+        }
+        mediaRecorderStarted = false
+    }
+
     private fun getFilePath() : String {
-        return getExternalFilesDir(null)?.getAbsolutePath() + "/${getFileName()}"
+        return getExternalFilesDir(null)?.absolutePath + "/${getFileName()}"
     }
 
     private fun getFileName() : String {
         val tz = TimeZone.getTimeZone("UTC")
-        val df = SimpleDateFormat("yyyyMMdd'T'HHmmss'Z'")
-        df.setTimeZone(tz)
+        val df = SimpleDateFormat("yyyyMMdd'T'HHmmss'Z'", Locale.US)
+        df.timeZone = tz
         val nowAsISO = df.format(Date())
-        val fileName = "eardrum-${nowAsISO}.ogg"
+        val fileName = "eardrum-${nowAsISO}.mp3"
         return fileName
     }
 
     private fun setNextAlarm() {
-        var interval = 60*60*1000 // Start a new recording session every hour
+        var interval = 10*1000 // Stop a recording after 10 seconds
 
-        var service: PendingIntent? = null
-        val intent = Intent(applicationContext, AudioRecorderService::class.java)
-        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val now = System.currentTimeMillis()
-        val then = now - (now % interval) + interval
-
-        if (service == null) {
-            service = PendingIntent.getService(this, 0, intent, PendingIntent.FLAG_CANCEL_CURRENT)
+        if (!mediaRecorderStarted) {
+            interval = 60*1000 // Start a new recording session every minute
         }
 
-        alarmManager.setExact(AlarmManager.RTC, then, service)
+        val service: PendingIntent?
+        val intent = Intent(applicationContext, AudioRecorderService::class.java)
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+        service = PendingIntent.getService(this, 0, intent,
+            PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+        alarmManager.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP,
+            SystemClock.elapsedRealtime() + interval,
+            service)
     }
 }

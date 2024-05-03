@@ -45,7 +45,7 @@ class MainActivity : AppCompatActivity() {
     private fun startAudioRecorderServiceWithPermissions() {
         val perms = arrayOf(
             Manifest.permission.RECORD_AUDIO,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE
+            Manifest.permission.WRITE_EXTERNAL_STORAGE,
         )
 
         if (EasyPermissions.hasPermissions(this, *perms)) {

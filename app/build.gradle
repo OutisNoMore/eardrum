@@ -2,15 +2,16 @@ apply plugin: 'com.android.application'
 
 apply plugin: 'kotlin-android'
 
-apply plugin: 'kotlin-android-extensions'
+//apply plugin: 'kotlin-android-extensions'
 
 android {
-    compileSdkVersion 29
-    buildToolsVersion "29.0.3"
+    //noinspection GradleDependency
+    compileSdk 29
     defaultConfig {
         applicationId "com.miguelrochefort.eardrum"
         minSdkVersion 21
-        targetSdkVersion 29
+        //noinspection ExpiredTargetSdkVersion
+        targetSdk 29
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
@@ -20,6 +21,14 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+    }
+    namespace 'com.miguelrochefort.eardrum'
+    compileOptions {
+        sourceCompatibility "1.8"
+    }
+    ndkVersion '25.1.8937393'
+    kotlinOptions {
+        jvmTarget = '1.8'
     }
 }
 
