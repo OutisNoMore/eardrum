@@ -1,21 +1,63 @@
 package com.miguelrochefort.eardrum
 
-import android.app.*
+import android.annotation.SuppressLint
+import android.app.AlarmManager
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 import android.media.MediaRecorder
+import android.os.BatteryManager
 import android.os.Build
+import android.os.Bundle
 import android.os.IBinder
 import android.os.SystemClock
+import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+
 
 class AudioRecorderService : Service() {
 
     private var mediaRecorderStarted = false
     private var recorder: MediaRecorder? = null
+    private lateinit var sensorManager: SensorManager
+    private var currentTemperature: Float? = null
+    private var temperature: Sensor? = null
+    private var temperatureListener: SensorEventListener = object : SensorEventListener {
+        override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {}
+
+        override fun onSensorChanged(event: SensorEvent) {
+            currentTemperature = event.values[0]
+        }
+    }
+    private var currentLocation: Location? = null
+    private var locationManager: LocationManager? = null
+    private val gpsLocationListener: LocationListener = object : LocationListener {
+        override fun onLocationChanged(location: Location) {
+            currentLocation = location
+        }
+
+        @Deprecated("Deprecated in Java")
+        override fun onStatusChanged(provider: String, status: Int, extras: Bundle) {}
+        override fun onProviderEnabled(provider: String) {}
+        override fun onProviderDisabled(provider: String) {}
+    }
 
     override fun onBind(intent: Intent): IBinder {
         TODO("Return the communication channel to the service.")
@@ -71,6 +113,9 @@ class AudioRecorderService : Service() {
 
     private fun createRecorder() {
         recorder = MediaRecorder()
+        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        temperature = sensorManager.getDefaultSensor(Sensor.TYPE_AMBIENT_TEMPERATURE)
     }
 
     private fun startRecorder() {
@@ -79,8 +124,9 @@ class AudioRecorderService : Service() {
             recorder?.reset()
         }
 
+        recorder = MediaRecorder()
         recorder?.setAudioSource(MediaRecorder.AudioSource.MIC)
-        recorder?.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+        recorder?.setOutputFormat(MediaRecorder.OutputFormat.DEFAULT)
         recorder?.setAudioEncoder(MediaRecorder.AudioEncoder.DEFAULT)
         recorder?.setAudioEncodingBitRate(128000)
         recorder?.setAudioSamplingRate(48000)
@@ -94,6 +140,7 @@ class AudioRecorderService : Service() {
         if (mediaRecorderStarted) {
             recorder?.stop()
             recorder?.reset()
+            recorder?.release()
         }
         mediaRecorderStarted = false
     }
@@ -107,15 +154,56 @@ class AudioRecorderService : Service() {
         val df = SimpleDateFormat("yyyyMMdd'T'HHmmss'Z'", Locale.US)
         df.timeZone = tz
         val nowAsISO = df.format(Date())
-        val fileName = "eardrum-${nowAsISO}.mp3"
+        val fileName = "eardrum-${nowAsISO}.3gpp"
         return fileName
     }
 
+    @SuppressLint("MissingPermission")
     private fun setNextAlarm() {
         var interval = 10*1000 // Stop a recording after 10 seconds
 
         if (!mediaRecorderStarted) {
             interval = 60*1000 // Start a new recording session every minute
+
+            val lastKnownLocationByGps =
+                locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+            lastKnownLocationByGps?.let {
+                currentLocation = lastKnownLocationByGps
+            }
+
+            Log.i(
+                "test",
+                "Current Location = [lat : ${currentLocation?.latitude}, " +
+                        "lng : ${currentLocation?.longitude}, " +
+                        "acc : ${currentLocation?.accuracy}]",
+            )
+
+            val batteryStatus: Intent? = IntentFilter(Intent.ACTION_BATTERY_CHANGED).let { ifilter ->
+                this.registerReceiver(null, ifilter)
+            }
+            val batteryPct: Float? = batteryStatus?.let { intent ->
+                val level: Int = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                val scale: Int = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                level * 100 / scale.toFloat()
+            }
+            Log.i(
+                "test",
+                "Battery Percentage : $batteryPct",
+            )
+            Log.i(
+                "test",
+                "Temperature : $currentTemperature",
+            )
+            sensorManager.unregisterListener(temperatureListener)
+            locationManager?.removeUpdates(gpsLocationListener)
+        } else {
+            sensorManager.registerListener(temperatureListener, temperature, SensorManager.SENSOR_DELAY_NORMAL)
+            locationManager?.requestLocationUpdates(
+                LocationManager.GPS_PROVIDER,
+                5000,
+                0F,
+                gpsLocationListener
+            )
         }
 
         val service: PendingIntent?
