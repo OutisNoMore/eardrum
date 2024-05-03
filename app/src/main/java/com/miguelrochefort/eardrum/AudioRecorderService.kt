@@ -126,8 +126,13 @@ class AudioRecorderService : Service() {
 
         recorder = MediaRecorder()
         recorder?.setAudioSource(MediaRecorder.AudioSource.MIC)
-        recorder?.setOutputFormat(MediaRecorder.OutputFormat.DEFAULT)
-        recorder?.setAudioEncoder(MediaRecorder.AudioEncoder.DEFAULT)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            recorder?.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            recorder?.setAudioEncoder(MediaRecorder.AudioEncoder.HE_AAC)
+        } else {
+            recorder?.setOutputFormat(MediaRecorder.OutputFormat.DEFAULT)
+            recorder?.setAudioEncoder(MediaRecorder.AudioEncoder.DEFAULT)
+        }
         recorder?.setAudioEncodingBitRate(128000)
         recorder?.setAudioSamplingRate(48000)
         recorder?.setOutputFile(getFilePath())
@@ -154,7 +159,9 @@ class AudioRecorderService : Service() {
         val df = SimpleDateFormat("yyyyMMdd'T'HHmmss'Z'", Locale.US)
         df.timeZone = tz
         val nowAsISO = df.format(Date())
-        val fileName = "eardrum-${nowAsISO}.3gpp"
+        var fileName = "eardrum-${nowAsISO}.3gpp"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+            fileName = "eardrum-${nowAsISO}.mp4"
         return fileName
     }
 
@@ -186,18 +193,34 @@ class AudioRecorderService : Service() {
                 val scale: Int = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
                 level * 100 / scale.toFloat()
             }
+            val batteryTemp: Double? =
+                batteryStatus?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1)?.div(10.0)
             Log.i(
                 "test",
                 "Battery Percentage : $batteryPct",
             )
             Log.i(
                 "test",
-                "Temperature : $currentTemperature",
+                "Battery Temperature : $batteryTemp",
             )
-            sensorManager.unregisterListener(temperatureListener)
+            temperature?.let {
+                Log.i(
+                    "test",
+                    "Temperature : $currentTemperature",
+                )
+            }
+            temperature?.let {
+                sensorManager.unregisterListener(temperatureListener)
+            }
             locationManager?.removeUpdates(gpsLocationListener)
         } else {
-            sensorManager.registerListener(temperatureListener, temperature, SensorManager.SENSOR_DELAY_NORMAL)
+            temperature?.let {
+                sensorManager.registerListener(
+                    temperatureListener,
+                    temperature,
+                    SensorManager.SENSOR_DELAY_NORMAL
+                )
+            }
             locationManager?.requestLocationUpdates(
                 LocationManager.GPS_PROVIDER,
                 5000,
