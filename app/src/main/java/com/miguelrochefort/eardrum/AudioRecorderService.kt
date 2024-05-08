@@ -156,12 +156,12 @@ class AudioRecorderService : Service() {
 
     private fun getFileName() : String {
         val tz = TimeZone.getTimeZone("UTC")
-        val df = SimpleDateFormat("yyyyMMdd'T'HHmmss'Z'", Locale.US)
+        val df = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
         df.timeZone = tz
         val nowAsISO = df.format(Date())
-        var fileName = "eardrum-${nowAsISO}.3gpp"
+        var fileName = "${nowAsISO}.3gpp"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
-            fileName = "eardrum-${nowAsISO}.mp4"
+            fileName = "${nowAsISO}.mp4"
         return fileName
     }
 
