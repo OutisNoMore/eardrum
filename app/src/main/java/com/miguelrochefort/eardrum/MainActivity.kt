@@ -2,26 +2,33 @@ package com.miguelrochefort.eardrum
 
 import android.Manifest
 import android.content.Intent
+import android.content.SharedPreferences
+import android.content.SharedPreferences.OnSharedPreferenceChangeListener
 import android.os.Build
 import android.os.Bundle
+import android.preference.PreferenceManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults.topAppBarColors
 import androidx.compose.runtime.Composable
@@ -40,11 +47,27 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import me.zhanghai.compose.preference.ListPreferenceType
+import me.zhanghai.compose.preference.ProvidePreferenceLocals
+import me.zhanghai.compose.preference.checkboxPreference
+import me.zhanghai.compose.preference.footerPreference
+import me.zhanghai.compose.preference.listPreference
+import me.zhanghai.compose.preference.multiSelectListPreference
+import me.zhanghai.compose.preference.preference
+import me.zhanghai.compose.preference.radioButtonPreference
+import me.zhanghai.compose.preference.sliderPreference
+import me.zhanghai.compose.preference.switchPreference
+import me.zhanghai.compose.preference.textFieldPreference
+import me.zhanghai.compose.preference.twoTargetIconButtonPreference
+import me.zhanghai.compose.preference.twoTargetSwitchPreference
 import pub.devrel.easypermissions.AfterPermissionGranted
 import pub.devrel.easypermissions.EasyPermissions
 
 
 class MainActivity : ComponentActivity() {
+
+    private val listener: OnSharedPreferenceChangeListener? = null
+    private var sharedPreferences: SharedPreferences? = null
 
     class Constants {
         companion object {
@@ -59,17 +82,17 @@ class MainActivity : ComponentActivity() {
 //        val webView = findViewById<WebView>(R.id.webView)
 //        webView.loadUrl("https://github.com/miguelrochefort/eardrum/blob/master/README.md")
 
+        sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
+
         setContent {
-            ScaffoldExample()
+            Scaffold_Main()
         }
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Preview
     @Composable
-    fun ScaffoldExample() {
-        var presses by remember { mutableIntStateOf(0) }
-
+    fun Scaffold_Main() {
         Scaffold(
             topBar = {
                 TopAppBar(
@@ -78,26 +101,26 @@ class MainActivity : ComponentActivity() {
                         titleContentColor = MaterialTheme.colorScheme.primary,
                     ),
                     title = {
-                        Text("Top app bar")
+                        Text("Eardrum")
                     }
                 )
             },
-            bottomBar = {
-                BottomAppBar(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.primary,
-                ) {
-                    Text(
-                        modifier = Modifier
-                            .fillMaxWidth(),
-                        textAlign = TextAlign.Center,
-                        text = "Bottom app bar",
-                    )
-                }
-            },
             floatingActionButton = {
-                FloatingActionButton(onClick = { presses++ }) {
-                    Icon(Icons.Default.Add, contentDescription = "Add")
+                FloatingActionButton(
+                    onClick = {
+                        val enabled = sharedPreferences?.getBoolean("enable_recording", true)
+                        val recording_length = sharedPreferences?.getFloat("recording_length", 1.0F)
+                        val recording_interval = sharedPreferences?.getFloat("recording_interval", 10.0f)
+                        val media_format = sharedPreferences?.getString("media_format", "mp4")
+                        val api_endpoint = sharedPreferences?.getString("api_endpoint", "http://10.0.2.2/")
+
+                        if (enabled == true) {
+                            startAudioRecorderService();
+                        } else {
+                            stopAudioRecorderService();
+                        }
+                    }) {
+                    Icon(Icons.Default.Check, contentDescription = "Add")
                 }
             }
         ) { innerPadding ->
@@ -107,68 +130,61 @@ class MainActivity : ComponentActivity() {
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(
-                    modifier = Modifier.padding(8.dp),
-                    text =
-                    """
-                    This is an example of a scaffold. It uses the Scaffold composable's parameters to create a screen with a simple top app bar, bottom app bar, and floating action button.
-
-                    It also contains some basic inner content, such as this text.
-
-                    You have pressed the floating action button $presses times.
-                """.trimIndent(),
-                )
-                CardDemo()
-                SwitchMinimalExample()
-                SwitchMinimalExample()
+                SettingsPage()
             }
         }
     }
 
     @Composable
-    fun CardDemo() {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(15.dp)
-                .clickable { },
-//            elevation = 10.dp,
-        ) {
-            Column(
-                modifier = Modifier.padding(15.dp)
-            ) {
-                Text(
-                    buildAnnotatedString {
-                        append("welcome to ")
-                        withStyle(style = SpanStyle(fontWeight = FontWeight.W900, color = Color(0xFF4552B8))
-                        ) {
-                            append("Jetpack Compose Playground")
-                        }
-                    }
+    fun SettingsPage() {
+        ProvidePreferenceLocals {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                preference(
+                    key = "preference",
+                    title = { Text(text = "Preference") },
+                    summary = { Text(text = "Summary") }
+                ) {}
+                switchPreference(
+                    key = "enable_recording",
+                    defaultValue = true,
+                    title = { Text(text = "Enable recording") },
+                    summary = { Text(text = if (it) "On" else "Off") }
                 )
-                Text(
-                    buildAnnotatedString {
-                        append("Now you are in the ")
-                        withStyle(style = SpanStyle(fontWeight = FontWeight.W900)) {
-                            append("Card")
-                        }
-                        append(" section")
-                    }
+                sliderPreference(
+                    key = "recording_length",
+                    defaultValue = 1f,
+                    title = { Text(text = "Recording length") },
+                    valueRange = 0f..5f,
+                    valueSteps = 9,
+                    summary = { Text(text = "Minutes") },
+                    valueText = { Text(text = "%.1f".format(it)) }
+                )
+                sliderPreference(
+                    key = "recording_interval",
+                    defaultValue = 10f,
+                    title = { Text(text = "Recording interval") },
+                    valueRange = 10f..60f,
+                    valueSteps = 4,
+                    summary = { Text(text = "Minutes") },
+                    valueText = { Text(text = "%.1f".format(it)) }
+                )
+                listPreference(
+                    key = "media_format",
+                    defaultValue = "mp4",
+                    values = listOf("opus", "mp4", "3gpp"),
+                    title = { Text(text = "Media format") },
+                    summary = { Text(text = it) },
+                    type = ListPreferenceType.DROPDOWN_MENU
+                )
+                textFieldPreference(
+                    key = "api_endpoint",
+                    defaultValue = "http://10.0.2.2/",
+                    title = { Text(text = "API endpoint address") },
+                    textToValue = { it },
+                    summary = { Text(text = it) }
                 )
             }
         }
-    }
-
-    @Composable
-    fun SwitchMinimalExample() {
-        var checked by remember { mutableStateOf(true) }
-
-        Switch(
-            checked = checked,
-            onCheckedChange = {
-                checked = it
-            }
-        )
     }
 
     override fun onStart() {
@@ -224,5 +240,10 @@ class MainActivity : ComponentActivity() {
         } else {
             startService(intent)
         }
+    }
+
+    private fun stopAudioRecorderService() {
+        val intent = Intent(this, AudioRecorderService::class.java)
+        this.stopService(intent)
     }
 }
