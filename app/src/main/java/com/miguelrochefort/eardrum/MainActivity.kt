@@ -9,59 +9,36 @@ import android.os.Bundle
 import android.preference.PreferenceManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material3.BottomAppBar
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults.topAppBarColors
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import me.zhanghai.compose.preference.ListPreferenceType
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
-import me.zhanghai.compose.preference.checkboxPreference
-import me.zhanghai.compose.preference.footerPreference
 import me.zhanghai.compose.preference.listPreference
-import me.zhanghai.compose.preference.multiSelectListPreference
 import me.zhanghai.compose.preference.preference
-import me.zhanghai.compose.preference.radioButtonPreference
 import me.zhanghai.compose.preference.sliderPreference
 import me.zhanghai.compose.preference.switchPreference
 import me.zhanghai.compose.preference.textFieldPreference
-import me.zhanghai.compose.preference.twoTargetIconButtonPreference
-import me.zhanghai.compose.preference.twoTargetSwitchPreference
 import pub.devrel.easypermissions.AfterPermissionGranted
 import pub.devrel.easypermissions.EasyPermissions
+import java.util.UUID
 
 
 class MainActivity : ComponentActivity() {
@@ -72,21 +49,30 @@ class MainActivity : ComponentActivity() {
     class Constants {
         companion object {
             const val RECORDING_PERMISSIONS = 1
+            const val UUID_PREF_KEY = "uuid"
         }
     }
 
+    private lateinit var sensorID: String
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        sensorID = getSensorID()
         super.onCreate(savedInstanceState)
-//        setContentView(R.layout.activity_main)
-//
-//        val webView = findViewById<WebView>(R.id.webView)
-//        webView.loadUrl("https://github.com/miguelrochefort/eardrum/blob/master/README.md")
 
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
 
         setContent {
             Scaffold_Main()
         }
+    }
+
+    private fun getSensorID(): String {
+        var uuid = sharedPreferences?.getString(Constants.UUID_PREF_KEY, null)
+        if (uuid == null) {
+            uuid = UUID.randomUUID().toString()
+            sharedPreferences?.edit()?.putString(Constants.UUID_PREF_KEY, uuid)?.apply()
+        }
+        return uuid
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -235,6 +221,7 @@ class MainActivity : ComponentActivity() {
 
     private fun startAudioRecorderService() {
         val intent = Intent(this, AudioRecorderService::class.java)
+        intent.putExtra("sensorID", sensorID)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)
         } else {

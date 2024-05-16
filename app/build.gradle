@@ -74,4 +74,5 @@ dependencies {
 
     implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0'
     implementation 'me.zhanghai.compose.preference:library:1.0.0'
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }
