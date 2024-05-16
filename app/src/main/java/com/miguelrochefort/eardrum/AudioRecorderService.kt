@@ -68,10 +68,17 @@ class AudioRecorderService : Service() {
     private var sensorID: String? = null
     private var outputPath: String? = null
     private var timeStamp: String? = null
+    private var recordingLength: Float? = null
+    private var recordingInterval: Float? = null
+    private var mediaFormat: String? = null
+    private var API_URL: String? = null
 
     class Constants {
         companion object {
             const val API_URL = "http://100.89.52.50:8000/sensor_upload/"
+            const val recordingLength = 1.0f
+            const val recordingInterval = 10.0f
+            const val mediaFormat = "mp4"
         }
     }
 
@@ -93,14 +100,14 @@ class AudioRecorderService : Service() {
 
     fun uploadData(audioFilePath: String) {
 
-        val status_json: String = Json.encodeToString(Status.serializer(), getStatus())
+        val statusJson: String = Json.encodeToString(Status.serializer(), getStatus())
 
         val client = OkHttpClient()
-        val url = Constants.API_URL
+        val url = API_URL
 
         val requestBody = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
-            .addFormDataPart("metadata", status_json)
+            .addFormDataPart("metadata", statusJson)
             .addFormDataPart(
                 "audio",
                 "audio.mp3",
@@ -108,26 +115,35 @@ class AudioRecorderService : Service() {
             )
             .build()
 
-        val request = Request.Builder()
-            .url(url)
-            .post(requestBody)
-            .build()
+        val request = url?.let {
+            Request.Builder()
+                .url(it)
+                .post(requestBody)
+                .build()
+        }
 
-        val response = client.newCall(request).execute()
-        if (response.isSuccessful) {
-            val responseBody = response.body?.string()
-            Log.i("test", responseBody.toString())
-        } else {
-            Log.e("test", "Failed to upload data")
+        val response = request?.let { client.newCall(it).execute() }
+        if (response != null) {
+            if (response.isSuccessful) {
+                val responseBody = response.body?.string()
+                Log.i("test", responseBody.toString())
+            } else {
+                Log.e("test", "Failed to upload data")
+            }
         }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // TODO: ensure that sensorID is passed in the intent
         sensorID = intent?.getStringExtra("sensorID")
+        recordingLength = intent?.getFloatExtra("recordingLength", 1.0f)
+        recordingInterval = intent?.getFloatExtra("recordingInterval", 10.0f)
+        mediaFormat = intent?.getStringExtra("mediaFormat")
+        API_URL = intent?.getStringExtra("apiEndpoint")
+
         if (mediaRecorderStarted) {
             stopRecorder()
-            uploadData(outputPath!!)
+//            uploadData(outputPath!!)
         } else {
             startRecorder()
         }
@@ -174,11 +190,20 @@ class AudioRecorderService : Service() {
             recorder?.reset()
         }
 
-        recorder = MediaRecorder()
+        recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+            MediaRecorder(this)
+        else
+            MediaRecorder()
         recorder?.setAudioSource(MediaRecorder.AudioSource.MIC)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (mediaFormat == "mp4") {
             recorder?.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             recorder?.setAudioEncoder(MediaRecorder.AudioEncoder.HE_AAC)
+        } else if (mediaFormat == "3gpp") {
+            recorder?.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP)
+            recorder?.setAudioEncoder(MediaRecorder.AudioEncoder.DEFAULT)
+        } else if (mediaFormat == "opus" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            recorder?.setOutputFormat(MediaRecorder.OutputFormat.OGG)
+            recorder?.setAudioEncoder(MediaRecorder.AudioEncoder.OPUS)
         } else {
             recorder?.setOutputFormat(MediaRecorder.OutputFormat.DEFAULT)
             recorder?.setAudioEncoder(MediaRecorder.AudioEncoder.DEFAULT)
@@ -216,8 +241,13 @@ class AudioRecorderService : Service() {
     private fun getFileName() : String {
         val nowAsISO = getTimeStamp()
         var fileName = "${nowAsISO}.3gpp"
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+        if (mediaFormat == "mp4") {
             fileName = "${nowAsISO}.mp4"
+        } else if (mediaFormat == "3gpp") {
+            fileName = "${nowAsISO}.3gpp"
+        } else if (mediaFormat == "opus" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            fileName = "${nowAsISO}.ogg"
+        }
         return fileName
     }
 
@@ -257,10 +287,11 @@ class AudioRecorderService : Service() {
 
     @SuppressLint("MissingPermission")
     private fun setNextAlarm() {
-        var interval = 10*1000 // Stop a recording after 10 seconds
+        var interval = recordingLength?.times(60000) // Stop a recording after some time
 
         if (!mediaRecorderStarted) {
-            interval = 60*1000 // Start a new recording session every minute
+            interval =
+                recordingInterval?.times(60000) // Start a new recording session every interval
 
             val lastKnownLocationByGps =
                 locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
@@ -322,13 +353,17 @@ class AudioRecorderService : Service() {
         val service: PendingIntent?
         val intent = Intent(applicationContext, AudioRecorderService::class.java)
         intent.putExtra("sensorID", sensorID)
+        intent.putExtra("recordingLength", recordingLength)
+        intent.putExtra("recordingInterval", recordingInterval)
+        intent.putExtra("mediaFormat", mediaFormat)
+        intent.putExtra("apiEndpoint", API_URL)
         val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
         service = PendingIntent.getService(this, 0, intent,
             PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
         alarmManager.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP,
-            SystemClock.elapsedRealtime() + interval,
+            SystemClock.elapsedRealtime() + (interval!!).toLong(),
             service)
     }
 }

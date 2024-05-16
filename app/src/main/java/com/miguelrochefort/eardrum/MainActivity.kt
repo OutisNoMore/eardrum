@@ -3,7 +3,6 @@ package com.miguelrochefort.eardrum
 import android.Manifest
 import android.content.Intent
 import android.content.SharedPreferences
-import android.content.SharedPreferences.OnSharedPreferenceChangeListener
 import android.os.Build
 import android.os.Bundle
 import android.preference.PreferenceManager
@@ -14,11 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -32,7 +27,6 @@ import androidx.compose.ui.unit.dp
 import me.zhanghai.compose.preference.ListPreferenceType
 import me.zhanghai.compose.preference.ProvidePreferenceLocals
 import me.zhanghai.compose.preference.listPreference
-import me.zhanghai.compose.preference.preference
 import me.zhanghai.compose.preference.sliderPreference
 import me.zhanghai.compose.preference.switchPreference
 import me.zhanghai.compose.preference.textFieldPreference
@@ -43,8 +37,24 @@ import java.util.UUID
 
 class MainActivity : ComponentActivity() {
 
-    private val listener: OnSharedPreferenceChangeListener? = null
     private var sharedPreferences: SharedPreferences? = null
+    private var listener: SharedPreferences.OnSharedPreferenceChangeListener =
+        object : SharedPreferences.OnSharedPreferenceChangeListener {
+            override fun onSharedPreferenceChanged(
+                sharedPreferences: SharedPreferences?,
+                key: String?
+            ) {
+                if (key == "enable_recording") {
+                    val enabled = sharedPreferences?.getBoolean("enable_recording", true)
+                    if (enabled == true) {
+                        startAudioRecorderService();
+                    } else {
+                        stopAudioRecorderService();
+                    }
+                }
+            }
+
+        }
 
     class Constants {
         companion object {
@@ -91,24 +101,6 @@ class MainActivity : ComponentActivity() {
                     }
                 )
             },
-            floatingActionButton = {
-                FloatingActionButton(
-                    onClick = {
-                        val enabled = sharedPreferences?.getBoolean("enable_recording", true)
-                        val recording_length = sharedPreferences?.getFloat("recording_length", 1.0F)
-                        val recording_interval = sharedPreferences?.getFloat("recording_interval", 10.0f)
-                        val media_format = sharedPreferences?.getString("media_format", "mp4")
-                        val api_endpoint = sharedPreferences?.getString("api_endpoint", "http://10.0.2.2/")
-
-                        if (enabled == true) {
-                            startAudioRecorderService();
-                        } else {
-                            stopAudioRecorderService();
-                        }
-                    }) {
-                    Icon(Icons.Default.Check, contentDescription = "Add")
-                }
-            }
         ) { innerPadding ->
             Column(
                 modifier = Modifier
@@ -125,11 +117,6 @@ class MainActivity : ComponentActivity() {
     fun SettingsPage() {
         ProvidePreferenceLocals {
             LazyColumn(modifier = Modifier.fillMaxSize()) {
-                preference(
-                    key = "preference",
-                    title = { Text(text = "Preference") },
-                    summary = { Text(text = "Summary") }
-                ) {}
                 switchPreference(
                     key = "enable_recording",
                     defaultValue = true,
@@ -138,19 +125,19 @@ class MainActivity : ComponentActivity() {
                 )
                 sliderPreference(
                     key = "recording_length",
-                    defaultValue = 1f,
+                    defaultValue = 0.25f,
                     title = { Text(text = "Recording length") },
-                    valueRange = 0f..5f,
-                    valueSteps = 9,
+                    valueRange = 0.25f..3f,
+                    valueSteps = 12,
                     summary = { Text(text = "Minutes") },
                     valueText = { Text(text = "%.1f".format(it)) }
                 )
                 sliderPreference(
                     key = "recording_interval",
-                    defaultValue = 10f,
+                    defaultValue = 1f,
                     title = { Text(text = "Recording interval") },
-                    valueRange = 10f..60f,
-                    valueSteps = 4,
+                    valueRange = 1f..10f,
+                    valueSteps = 8,
                     summary = { Text(text = "Minutes") },
                     valueText = { Text(text = "%.1f".format(it)) }
                 )
@@ -164,7 +151,7 @@ class MainActivity : ComponentActivity() {
                 )
                 textFieldPreference(
                     key = "api_endpoint",
-                    defaultValue = "http://10.0.2.2/",
+                    defaultValue = "http://100.89.52.50:8000/sensor_upload/",
                     title = { Text(text = "API endpoint address") },
                     textToValue = { it },
                     summary = { Text(text = it) }
@@ -176,7 +163,9 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
 
-        startAudioRecorderServiceWithPermissions()
+        val enabled = sharedPreferences?.getBoolean("enable_recording", true)
+        if (enabled == true)
+            startAudioRecorderServiceWithPermissions()
     }
 
     override fun onRequestPermissionsResult(
@@ -221,7 +210,15 @@ class MainActivity : ComponentActivity() {
 
     private fun startAudioRecorderService() {
         val intent = Intent(this, AudioRecorderService::class.java)
+        val recordingLength = sharedPreferences?.getFloat("recording_length", 1.0F)
+        val recordingInterval = sharedPreferences?.getFloat("recording_interval", 10.0f)
+        val mediaFormat = sharedPreferences?.getString("media_format", "mp4")
+        val apiEndpoint = sharedPreferences?.getString("api_endpoint", "http://100.89.52.50:8000/sensor_upload/")
         intent.putExtra("sensorID", sensorID)
+        intent.putExtra("recordingLength", recordingLength)
+        intent.putExtra("recordingInterval", recordingInterval)
+        intent.putExtra("mediaFormat", mediaFormat)
+        intent.putExtra("apiEndpoint", apiEndpoint)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)
         } else {
@@ -232,5 +229,17 @@ class MainActivity : ComponentActivity() {
     private fun stopAudioRecorderService() {
         val intent = Intent(this, AudioRecorderService::class.java)
         this.stopService(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Set up a listener whenever a key changes
+        sharedPreferences?.registerOnSharedPreferenceChangeListener(listener)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // Unregister the listener whenever a key changes
+        sharedPreferences?.unregisterOnSharedPreferenceChangeListener(listener)
     }
 }
