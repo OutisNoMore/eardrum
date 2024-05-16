@@ -1,7 +1,9 @@
 package com.miguelrochefort.eardrum
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -42,6 +44,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import pub.devrel.easypermissions.AfterPermissionGranted
 import pub.devrel.easypermissions.EasyPermissions
+import java.util.UUID
 
 
 class MainActivity : ComponentActivity() {
@@ -49,19 +52,29 @@ class MainActivity : ComponentActivity() {
     class Constants {
         companion object {
             const val RECORDING_PERMISSIONS = 1
+            const val UUID_PREF_KEY = "uuid"
         }
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-//        setContentView(R.layout.activity_main)
-//
-//        val webView = findViewById<WebView>(R.id.webView)
-//        webView.loadUrl("https://github.com/miguelrochefort/eardrum/blob/master/README.md")
+    private lateinit var sharedPreferences: SharedPreferences
+    private lateinit var sensorID: String
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        sharedPreferences = getSharedPreferences("EardrumPrefs", Context.MODE_PRIVATE)
+        sensorID = getSensorID()
+        super.onCreate(savedInstanceState)
         setContent {
             ScaffoldExample()
         }
+    }
+
+    private fun getSensorID(): String {
+        var uuid = sharedPreferences.getString(Constants.UUID_PREF_KEY, null)
+        if (uuid == null) {
+            uuid = UUID.randomUUID().toString()
+            sharedPreferences.edit().putString(Constants.UUID_PREF_KEY, uuid).apply()
+        }
+        return uuid
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -219,6 +232,7 @@ class MainActivity : ComponentActivity() {
 
     private fun startAudioRecorderService() {
         val intent = Intent(this, AudioRecorderService::class.java)
+        intent.putExtra("sensorID", sensorID)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)
         } else {
