@@ -5,8 +5,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 @SerialName("Recording")
-data class Recording(
-  val filePath: String,
+data class Metadata(
   @SerialName("sensor_id") val sensorID: String,
   val lat: Float,
   val lon: Float,
