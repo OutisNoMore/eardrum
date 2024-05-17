@@ -47,6 +47,7 @@ class MainActivity : ComponentActivity() {
                 if (key == "enable_recording") {
                     val enabled = sharedPreferences?.getBoolean("enable_recording", true)
                     if (enabled == true) {
+                        stopAudioRecorderService();
                         startAudioRecorderService();
                     } else {
                         stopAudioRecorderService();
@@ -151,7 +152,7 @@ class MainActivity : ComponentActivity() {
                 )
                 textFieldPreference(
                     key = "api_endpoint",
-                    defaultValue = "http://100.89.52.50:8000/sensor_upload/",
+                    defaultValue = "http://10.0.2.2:8000/upload/",
                     title = { Text(text = "API endpoint address") },
                     textToValue = { it },
                     summary = { Text(text = it) }
@@ -213,7 +214,7 @@ class MainActivity : ComponentActivity() {
         val recordingLength = sharedPreferences?.getFloat("recording_length", 1.0F)
         val recordingInterval = sharedPreferences?.getFloat("recording_interval", 10.0f)
         val mediaFormat = sharedPreferences?.getString("media_format", "mp4")
-        val apiEndpoint = sharedPreferences?.getString("api_endpoint", "http://100.89.52.50:8000/sensor_upload/")
+        val apiEndpoint = sharedPreferences?.getString("api_endpoint", "http://10.0.2.2:8000/upload/")
         intent.putExtra("sensorID", sensorID)
         intent.putExtra("recordingLength", recordingLength)
         intent.putExtra("recordingInterval", recordingInterval)

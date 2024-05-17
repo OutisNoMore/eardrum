@@ -26,12 +26,18 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.Response
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -40,7 +46,9 @@ import java.util.TimeZone
 
 
 class AudioRecorderService : Service() {
-
+    private val job = SupervisorJob()
+    private val scope = CoroutineScope(Dispatchers.IO + job)
+    private var pendingIntent: PendingIntent? = null
     private var mediaRecorderStarted = false
     private var recorder: MediaRecorder? = null
     private lateinit var sensorManager: SensorManager
@@ -75,7 +83,7 @@ class AudioRecorderService : Service() {
 
     class Constants {
         companion object {
-            const val API_URL = "http://100.89.52.50:8000/sensor_upload/"
+            const val API_URL = "http://10.0.2.2:8000/upload/"
             const val recordingLength = 1.0f
             const val recordingInterval = 10.0f
             const val mediaFormat = "mp4"
@@ -98,37 +106,50 @@ class AudioRecorderService : Service() {
         createRecorder()
     }
 
-    fun uploadData(audioFilePath: String) {
+    private fun uploadData(audioFilePath: String) {
 
-        val statusJson: String = Json.encodeToString(Status.serializer(), getStatus())
+        val stat: Status = getStatus()
+        val statusJson: String = Json.encodeToString(Status.serializer(), stat)
 
         val client = OkHttpClient()
         val url = API_URL
 
         val requestBody = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
-            .addFormDataPart("metadata", statusJson)
+//            .addFormDataPart("metadata", statusJson)
+            .addFormDataPart("sensor_id", stat.sensorID)
+            .addFormDataPart("timestamp", stat.timestamp)
+            .addFormDataPart("lat", stat.lat.toString())
+            .addFormDataPart("lon", stat.lon.toString())
+            .addFormDataPart("accuracy", stat.accuracy.toString())
+            .addFormDataPart("battery", stat.battery.toString())
+            .addFormDataPart("temperature", stat.temperature.toString())
             .addFormDataPart(
-                "audio",
-                "audio.mp3",
-                File(audioFilePath).asRequestBody("audio/mpeg".toMediaType())
+                "audio_file",
+                outputPath,
+                File(audioFilePath).asRequestBody("video/mpeg".toMediaType())
             )
             .build()
 
         val request = url?.let {
             Request.Builder()
                 .url(it)
+                .addHeader("accept", "application/json")
+                .addHeader("Accept-Encoding", "identity")
                 .post(requestBody)
                 .build()
         }
 
-        val response = request?.let { client.newCall(it).execute() }
-        if (response != null) {
-            if (response.isSuccessful) {
-                val responseBody = response.body?.string()
-                Log.i("test", responseBody.toString())
-            } else {
-                Log.e("test", "Failed to upload data")
+        scope.launch {
+            val response: Response? = request?.let { client.newCall(it).execute() }
+
+            if (response != null) {
+                if (response.isSuccessful) {
+                    val responseBody = response.body?.string()
+                    Log.i("test", responseBody.toString())
+                } else {
+                    Log.e("test", "Failed to upload data ${response.code}")
+                }
             }
         }
     }
@@ -143,7 +164,7 @@ class AudioRecorderService : Service() {
 
         if (mediaRecorderStarted) {
             stopRecorder()
-//            uploadData(outputPath!!)
+            uploadData(outputPath!!)
         } else {
             startRecorder()
         }
@@ -153,6 +174,9 @@ class AudioRecorderService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        job.cancelChildren()
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        pendingIntent?.let { alarmManager.cancel(it) }
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -352,15 +376,17 @@ class AudioRecorderService : Service() {
 
         val service: PendingIntent?
         val intent = Intent(applicationContext, AudioRecorderService::class.java)
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
         intent.putExtra("sensorID", sensorID)
         intent.putExtra("recordingLength", recordingLength)
         intent.putExtra("recordingInterval", recordingInterval)
         intent.putExtra("mediaFormat", mediaFormat)
         intent.putExtra("apiEndpoint", API_URL)
-        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
         service = PendingIntent.getService(this, 0, intent,
             PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+        pendingIntent = service
 
         alarmManager.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP,
             SystemClock.elapsedRealtime() + (interval!!).toLong(),
