@@ -20,7 +20,6 @@ import android.location.LocationManager
 import android.media.MediaRecorder
 import android.os.BatteryManager
 import android.os.Build
-import android.os.Bundle
 import android.os.IBinder
 import android.os.SystemClock
 import android.util.Log
@@ -51,28 +50,20 @@ class AudioRecorderService : Service() {
     private var pendingIntent: PendingIntent? = null
     private var mediaRecorderStarted = false
     private var recorder: MediaRecorder? = null
-    private lateinit var sensorManager: SensorManager
-    private var currentTemperature: Float? = null
-    private var temperature: Sensor? = null
-    private var temperatureListener: SensorEventListener = object : SensorEventListener {
-        override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {}
-
-        override fun onSensorChanged(event: SensorEvent) {
-            currentTemperature = event.values[0]
-        }
-    }
-    private var currentLocation: Location? = null
-    private var locationManager: LocationManager? = null
+    private var currentLocationGPS: Location? = null
+//    private var currentLocationNet: Location? = null
+    private var locationManagerGPS: LocationManager? = null
+//    private var locationManagerNet: LocationManager? = null
     private val gpsLocationListener: LocationListener = object : LocationListener {
         override fun onLocationChanged(location: Location) {
-            currentLocation = location
+            currentLocationGPS = location
         }
-
-        @Deprecated("Deprecated in Java")
-        override fun onStatusChanged(provider: String, status: Int, extras: Bundle) {}
-        override fun onProviderEnabled(provider: String) {}
-        override fun onProviderDisabled(provider: String) {}
     }
+//    private val netLocationListener: LocationListener = object : LocationListener {
+//        override fun onLocationChanged(location: Location) {
+//            currentLocationNet = location
+//        }
+//    }
     private var sensorID: String? = null
     private var outputPath: String? = null
     private var timeStamp: String? = null
@@ -141,7 +132,13 @@ class AudioRecorderService : Service() {
         }
 
         scope.launch {
-            val response: Response? = request?.let { client.newCall(it).execute() }
+            val response: Response? = request?.let {
+                try {
+                    client.newCall(it).execute()
+                } catch (e: Exception) {
+                    null
+                }
+            }
 
             if (response != null) {
                 if (response.isSuccessful) {
@@ -203,9 +200,8 @@ class AudioRecorderService : Service() {
 
     private fun createRecorder() {
         recorder = MediaRecorder()
-        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
-        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        temperature = sensorManager.getDefaultSensor(Sensor.TYPE_AMBIENT_TEMPERATURE)
+        locationManagerGPS = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+//        locationManagerNet = getSystemService(Context.LOCATION_SERVICE) as LocationManager
     }
 
     private fun startRecorder() {
@@ -278,13 +274,13 @@ class AudioRecorderService : Service() {
     @SuppressLint("MissingPermission")
     private fun getStatus(): Status {
         val lastKnownLocationByGps =
-            locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+            locationManagerGPS?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
         lastKnownLocationByGps?.let {
-            currentLocation = lastKnownLocationByGps
+            currentLocationGPS = lastKnownLocationByGps
         }
-        val lat: Double? = currentLocation?.latitude
-        val lon: Double? = currentLocation?.longitude
-        val accuracy: Float? = currentLocation?.accuracy
+        val lat: Double? = currentLocationGPS?.latitude
+        val lon: Double? = currentLocationGPS?.longitude
+        val accuracy: Float? = currentLocationGPS?.accuracy
 
         val batteryStatus: Intent? = IntentFilter(Intent.ACTION_BATTERY_CHANGED).let { ifilter ->
             this.registerReceiver(null, ifilter)
@@ -318,17 +314,29 @@ class AudioRecorderService : Service() {
                 recordingInterval?.times(60000) // Start a new recording session every interval
 
             val lastKnownLocationByGps =
-                locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                locationManagerGPS?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
             lastKnownLocationByGps?.let {
-                currentLocation = lastKnownLocationByGps
+                currentLocationGPS = lastKnownLocationByGps
             }
+
+//            val lastKnownLocationByNet =
+//                locationManagerNet?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+//            lastKnownLocationByNet?.let {
+//                currentLocationNet = lastKnownLocationByNet
+//            }
 
             Log.i(
                 "test",
-                "Current Location = [lat : ${currentLocation?.latitude}, " +
-                        "lng : ${currentLocation?.longitude}, " +
-                        "acc : ${currentLocation?.accuracy}]",
+                "Current Location = [lat : ${currentLocationGPS?.latitude}, " +
+                        "lng : ${currentLocationGPS?.longitude}, " +
+                        "acc : ${currentLocationGPS?.accuracy}]",
             )
+//            Log.i(
+//                "test",
+//                "Current Location = [lat : ${currentLocationNet?.latitude}, " +
+//                    "lng : ${currentLocationNet?.longitude}, " +
+//                    "acc : ${currentLocationNet?.accuracy}]",
+//            )
 
             val batteryStatus: Intent? = IntentFilter(Intent.ACTION_BATTERY_CHANGED).let { ifilter ->
                 this.registerReceiver(null, ifilter)
@@ -348,30 +356,21 @@ class AudioRecorderService : Service() {
                 "test",
                 "Battery Temperature : $batteryTemp",
             )
-            temperature?.let {
-                Log.i(
-                    "test",
-                    "Temperature : $currentTemperature",
-                )
-            }
-            temperature?.let {
-                sensorManager.unregisterListener(temperatureListener)
-            }
-            locationManager?.removeUpdates(gpsLocationListener)
+            locationManagerGPS?.removeUpdates(gpsLocationListener)
+//            locationManagerNet?.removeUpdates(netLocationListener)
         } else {
-            temperature?.let {
-                sensorManager.registerListener(
-                    temperatureListener,
-                    temperature,
-                    SensorManager.SENSOR_DELAY_NORMAL
-                )
-            }
-            locationManager?.requestLocationUpdates(
+            locationManagerGPS?.requestLocationUpdates(
                 LocationManager.GPS_PROVIDER,
                 5000,
                 0F,
                 gpsLocationListener
             )
+//            locationManagerNet?.requestLocationUpdates(
+//                LocationManager.NETWORK_PROVIDER,
+//                5000,
+//                0F,
+//                netLocationListener
+//            )
         }
 
         val service: PendingIntent?
