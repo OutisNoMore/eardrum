@@ -128,8 +128,8 @@ class MainActivity : ComponentActivity() {
                     key = "recording_length",
                     defaultValue = 0.25f,
                     title = { Text(text = "Recording length") },
-                    valueRange = 0.25f..3f,
-                    valueSteps = 12,
+                    valueRange = 0.5f..5f,
+                    valueSteps = 8,
                     summary = { Text(text = "Minutes") },
                     valueText = { Text(text = "%.1f".format(it)) }
                 )
@@ -137,7 +137,7 @@ class MainActivity : ComponentActivity() {
                     key = "recording_interval",
                     defaultValue = 1f,
                     title = { Text(text = "Recording interval") },
-                    valueRange = 1f..10f,
+                    valueRange = 0.5f..5f,
                     valueSteps = 8,
                     summary = { Text(text = "Minutes") },
                     valueText = { Text(text = "%.1f".format(it)) }
@@ -152,7 +152,7 @@ class MainActivity : ComponentActivity() {
                 )
                 textFieldPreference(
                     key = "api_endpoint",
-                    defaultValue = "http://10.0.2.2:8000/upload/",
+                    defaultValue = "http://smartcycling.sysnet.ucsd.edu:44544/upload/",
                     title = { Text(text = "API endpoint address") },
                     textToValue = { it },
                     summary = { Text(text = it) }
@@ -214,7 +214,7 @@ class MainActivity : ComponentActivity() {
         val recordingLength = sharedPreferences?.getFloat("recording_length", 1.0F)
         val recordingInterval = sharedPreferences?.getFloat("recording_interval", 10.0f)
         val mediaFormat = sharedPreferences?.getString("media_format", "mp4")
-        val apiEndpoint = sharedPreferences?.getString("api_endpoint", "http://10.0.2.2:8000/upload/")
+        val apiEndpoint = sharedPreferences?.getString("api_endpoint", "http://smartcycling.sysnet.ucsd.edu:44544/upload/")
         intent.putExtra("sensorID", sensorID)
         intent.putExtra("recordingLength", recordingLength)
         intent.putExtra("recordingInterval", recordingInterval)

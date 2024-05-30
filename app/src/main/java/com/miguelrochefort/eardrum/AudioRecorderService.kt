@@ -70,11 +70,12 @@ class AudioRecorderService : Service() {
     private var recordingLength: Float? = null
     private var recordingInterval: Float? = null
     private var mediaFormat: String? = null
+    private var mediaString: String? = null
     private var API_URL: String? = null
 
     class Constants {
         companion object {
-            const val API_URL = "http://10.0.2.2:8000/upload/"
+            const val API_URL = "http://smartcycling.sysnet.ucsd.edu:44544/upload/"
             const val recordingLength = 1.0f
             const val recordingInterval = 10.0f
             const val mediaFormat = "mp4"
@@ -118,7 +119,9 @@ class AudioRecorderService : Service() {
             .addFormDataPart(
                 "audio_file",
                 outputPath,
-                File(audioFilePath).asRequestBody("video/mpeg".toMediaType())
+//                "example.mp4",
+                File(audioFilePath).asRequestBody(mediaString?.toMediaType())
+//                File("/storage/emulated/0/Android/data/com.miguelrochefort.eardrum/files/example.mp4").asRequestBody("video/mpeg".toMediaType())
             )
             .build()
 
@@ -215,18 +218,33 @@ class AudioRecorderService : Service() {
         else
             MediaRecorder()
         recorder?.setAudioSource(MediaRecorder.AudioSource.MIC)
-        if (mediaFormat == "mp4") {
-            recorder?.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            recorder?.setAudioEncoder(MediaRecorder.AudioEncoder.HE_AAC)
-        } else if (mediaFormat == "3gpp") {
-            recorder?.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP)
-            recorder?.setAudioEncoder(MediaRecorder.AudioEncoder.DEFAULT)
-        } else if (mediaFormat == "opus" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            recorder?.setOutputFormat(MediaRecorder.OutputFormat.OGG)
-            recorder?.setAudioEncoder(MediaRecorder.AudioEncoder.OPUS)
-        } else {
+        try {
+            if (mediaFormat == "mp4") {
+                recorder?.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                recorder?.setAudioEncoder(MediaRecorder.AudioEncoder.HE_AAC)
+                mediaString = "video/mpeg"
+            } else if (mediaFormat == "3gpp") {
+                recorder?.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP)
+                recorder?.setAudioEncoder(MediaRecorder.AudioEncoder.DEFAULT)
+                mediaString = "audio/3gpp"
+            } else if (mediaFormat == "opus" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                recorder?.setOutputFormat(MediaRecorder.OutputFormat.OGG)
+                recorder?.setAudioEncoder(MediaRecorder.AudioEncoder.OPUS)
+                mediaString = "audio/opus"
+            } else {
+                recorder?.setOutputFormat(MediaRecorder.OutputFormat.DEFAULT)
+                recorder?.setAudioEncoder(MediaRecorder.AudioEncoder.DEFAULT)
+                mediaString = "audio/3gpp"
+            }
+        } catch (e: Exception) {
             recorder?.setOutputFormat(MediaRecorder.OutputFormat.DEFAULT)
             recorder?.setAudioEncoder(MediaRecorder.AudioEncoder.DEFAULT)
+            mediaString = "audio/3gpp"
+        }
+        try {
+            recorder?.setAudioChannels(2)
+        } catch (e: Exception) {
+            Log.e("test", "Unable to set stereo recording")
         }
         recorder?.setAudioEncodingBitRate(128000)
         recorder?.setAudioSamplingRate(48000)
@@ -278,9 +296,9 @@ class AudioRecorderService : Service() {
         lastKnownLocationByGps?.let {
             currentLocationGPS = lastKnownLocationByGps
         }
-        val lat: Double? = currentLocationGPS?.latitude
-        val lon: Double? = currentLocationGPS?.longitude
-        val accuracy: Float? = currentLocationGPS?.accuracy
+        var lat: Double? = currentLocationGPS?.latitude
+        var lon: Double? = currentLocationGPS?.longitude
+        var accuracy: Float? = currentLocationGPS?.accuracy
 
         val batteryStatus: Intent? = IntentFilter(Intent.ACTION_BATTERY_CHANGED).let { ifilter ->
             this.registerReceiver(null, ifilter)
@@ -292,6 +310,12 @@ class AudioRecorderService : Service() {
         }
         val temperature: Double? =
             batteryStatus?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1)?.div(10.0)
+
+        if (lat == null || lon == null || accuracy == null) {
+            lat = 0.0
+            lon = 0.0
+            accuracy = 0f
+        }
 
         val status = Status(
             sensorID = sensorID!!,
