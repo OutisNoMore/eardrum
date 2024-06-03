@@ -4,10 +4,10 @@
     <selectionStates>
       <SelectionState runConfigName="app">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2024-05-30T05:29:24.981930528Z">
+        <DropdownSelection timestamp="2024-06-03T22:12:50.581436886Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="LocalEmulator" identifier="path=/home/rwake/.android/avd/Nexus_4_API_30.avd" />
+              <DeviceId pluginId="PhysicalDevice" identifier="serial=04dd1838188b093e" />
             </handle>
           </Target>
         </DropdownSelection>

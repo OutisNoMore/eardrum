@@ -3,6 +3,10 @@ package com.miguelrochefort.eardrum
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+/*
+    Previous plan was to send serialized status, but currently send
+    to the API as separate form data parts.
+ */
 @Serializable
 @SerialName("Recording")
 data class Status(
