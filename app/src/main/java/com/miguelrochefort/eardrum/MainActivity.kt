@@ -2,181 +2,84 @@ package com.miguelrochefort.eardrum
 
 import android.Manifest
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Build
 import android.os.Bundle
+import android.preference.PreferenceManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.BottomAppBar
-import androidx.compose.material3.Card
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults.topAppBarColors
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import pub.devrel.easypermissions.AfterPermissionGranted
 import pub.devrel.easypermissions.EasyPermissions
+import java.util.UUID
 
 
 class MainActivity : ComponentActivity() {
-
-    class Constants {
-        companion object {
-            const val RECORDING_PERMISSIONS = 1
+    // Create variables for sharedPreferences reference and listener
+    private var sharedPreferences: SharedPreferences? = null
+    private var listener: SharedPreferences.OnSharedPreferenceChangeListener =
+        SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
+            // Currently when one preference changes this gets called for all
+            // of them, so make sure to start or stop only once
+            // TODO: look into why this is happening
+            if (key == "enable_recording") {
+                val enabled = sharedPreferences?.getBoolean("enable_recording", true)
+                if (enabled == true) {
+                    // Restart service to pass in new settings
+                    stopAudioRecorderService();
+                    startAudioRecorderService();
+                } else {
+                    stopAudioRecorderService();
+                }
+            }
         }
+    // Create variable for sensorID (UUID)
+    private lateinit var sensorID: String
+
+
+    /*
+        Generate a new UUID for this phone if it doesn't exist already and
+        store it in the shared preferences
+     */
+    private fun getSensorID(): String {
+        var uuid = sharedPreferences?.getString(Constants.UUID_PREF_KEY, null)
+        if (uuid == null) {
+            uuid = UUID.randomUUID().toString()
+            sharedPreferences?.edit()?.putString(Constants.UUID_PREF_KEY, uuid)?.apply()
+        }
+        return uuid
     }
 
+
+    /*
+        Standard onCreate, get ID, Preferences, and start ui
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-//        setContentView(R.layout.activity_main)
-//
-//        val webView = findViewById<WebView>(R.id.webView)
-//        webView.loadUrl("https://github.com/miguelrochefort/eardrum/blob/master/README.md")
+        sensorID = getSensorID()
+        sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
+        val ui = UI()
 
         setContent {
-            ScaffoldExample()
+            ui.Scaffold_Main()
         }
     }
 
-    @OptIn(ExperimentalMaterial3Api::class)
-    @Preview
-    @Composable
-    fun ScaffoldExample() {
-        var presses by remember { mutableIntStateOf(0) }
 
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    colors = topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        titleContentColor = MaterialTheme.colorScheme.primary,
-                    ),
-                    title = {
-                        Text("Top app bar")
-                    }
-                )
-            },
-            bottomBar = {
-                BottomAppBar(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.primary,
-                ) {
-                    Text(
-                        modifier = Modifier
-                            .fillMaxWidth(),
-                        textAlign = TextAlign.Center,
-                        text = "Bottom app bar",
-                    )
-                }
-            },
-            floatingActionButton = {
-                FloatingActionButton(onClick = { presses++ }) {
-                    Icon(Icons.Default.Add, contentDescription = "Add")
-                }
-            }
-        ) { innerPadding ->
-            Column(
-                modifier = Modifier
-                    .padding(innerPadding),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    modifier = Modifier.padding(8.dp),
-                    text =
-                    """
-                    This is an example of a scaffold. It uses the Scaffold composable's parameters to create a screen with a simple top app bar, bottom app bar, and floating action button.
-
-                    It also contains some basic inner content, such as this text.
-
-                    You have pressed the floating action button $presses times.
-                """.trimIndent(),
-                )
-                CardDemo()
-                SwitchMinimalExample()
-                SwitchMinimalExample()
-            }
-        }
-    }
-
-    @Composable
-    fun CardDemo() {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(15.dp)
-                .clickable { },
-//            elevation = 10.dp,
-        ) {
-            Column(
-                modifier = Modifier.padding(15.dp)
-            ) {
-                Text(
-                    buildAnnotatedString {
-                        append("welcome to ")
-                        withStyle(style = SpanStyle(fontWeight = FontWeight.W900, color = Color(0xFF4552B8))
-                        ) {
-                            append("Jetpack Compose Playground")
-                        }
-                    }
-                )
-                Text(
-                    buildAnnotatedString {
-                        append("Now you are in the ")
-                        withStyle(style = SpanStyle(fontWeight = FontWeight.W900)) {
-                            append("Card")
-                        }
-                        append(" section")
-                    }
-                )
-            }
-        }
-    }
-
-    @Composable
-    fun SwitchMinimalExample() {
-        var checked by remember { mutableStateOf(true) }
-
-        Switch(
-            checked = checked,
-            onCheckedChange = {
-                checked = it
-            }
-        )
-    }
-
+    /*
+        On start, check if permissions are granted, else don't do anything
+     */
     override fun onStart() {
         super.onStart()
-
-        startAudioRecorderServiceWithPermissions()
+        val enabled = sharedPreferences?.getBoolean("enable_recording", true)
+        if (enabled == true)
+            startAudioRecorderServiceWithPermissions()
     }
 
+
+    /*
+        Previous application used EasyPermissions, possibly find new library or do it
+        native in the future
+     */
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<String>,
@@ -185,6 +88,7 @@ class MainActivity : ComponentActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         EasyPermissions.onRequestPermissionsResult(requestCode, permissions, grantResults, this)
     }
+
 
     @AfterPermissionGranted(Constants.RECORDING_PERMISSIONS)
     private fun startAudioRecorderServiceWithPermissions() {
@@ -195,6 +99,13 @@ class MainActivity : ComponentActivity() {
             Manifest.permission.ACCESS_FINE_LOCATION,
         )
 
+        /*
+            Android Q and above require background location permission, currently
+            this shows as a link in the permission dialog
+            Possibly change to directly go to that settings page in the future.
+            Also, we currently save data in application data folder, but if we want
+            to store somewhere else we need some other permissions and setup
+         */
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             perms = arrayOf(
                 Manifest.permission.RECORD_AUDIO,
@@ -217,12 +128,45 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /*
+        This starts the background service (actually a foreground service to handle audio recording)
+        and passes in all the settings in the intent. Additional settings can be passed in this way
+     */
     private fun startAudioRecorderService() {
         val intent = Intent(this, AudioRecorderService::class.java)
+        val recordingLength = sharedPreferences?.getFloat("recording_length", Constants.RECORDING_LENGTH)
+        val recordingInterval = sharedPreferences?.getFloat("recording_interval", Constants.RECORDING_INTERVAL)
+        val mediaFormat = sharedPreferences?.getString("media_format", Constants.MEDIA_FORMAT)
+        val apiEndpoint = sharedPreferences?.getString("api_endpoint", Constants.API_URL)
+        intent.putExtra("sensorID", sensorID)
+        intent.putExtra("recordingLength", recordingLength)
+        intent.putExtra("recordingInterval", recordingInterval)
+        intent.putExtra("mediaFormat", mediaFormat)
+        intent.putExtra("apiEndpoint", apiEndpoint)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)
         } else {
             startService(intent)
         }
+    }
+
+
+    private fun stopAudioRecorderService() {
+        val intent = Intent(this, AudioRecorderService::class.java)
+        this.stopService(intent)
+    }
+
+
+    override fun onResume() {
+        super.onResume()
+        // Set up a listener whenever a key changes
+        sharedPreferences?.registerOnSharedPreferenceChangeListener(listener)
+    }
+
+
+    override fun onPause() {
+        super.onPause()
+        // Unregister the listener whenever a key changes
+        sharedPreferences?.unregisterOnSharedPreferenceChangeListener(listener)
     }
 }
