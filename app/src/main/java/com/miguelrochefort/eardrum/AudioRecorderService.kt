@@ -74,6 +74,7 @@ class AudioRecorderService : Service() {
     private var mediaFormat: String? = null
     private var mediaString: String? = null
     private var apiURL: String? = null
+    private var onDevice: Boolean = false
 
 
     override fun onBind(intent: Intent): IBinder {
@@ -106,7 +107,10 @@ class AudioRecorderService : Service() {
         // Set next alarm to start or stop recording
         if (mediaRecorderStarted) {
             stopRecorder()
-            uploadData(outputPath!!)
+            // Only upload audio data for processing if set by user
+            if (!onDevice) {
+                uploadData(outputPath!!)
+            }
         } else {
             startRecorder()
         }
@@ -465,6 +469,7 @@ class AudioRecorderService : Service() {
         intent.putExtra("recordingInterval", recordingInterval)
         intent.putExtra("mediaFormat", mediaFormat)
         intent.putExtra("apiEndpoint", apiURL)
+        intent.putExtra("onDeviceProcessing", onDevice)
 
         service = PendingIntent.getService(this, 0, intent,
             PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE)

@@ -75,6 +75,12 @@ class UI {
                     title = { Text(text = "Enable recording") },
                     summary = { Text(text = if (it) "On" else "Off") }
                 )
+                switchPreference(
+                    key = "on_device_processing",
+                    defaultValue = true,
+                    title = { Text(text = "On Device Processing") },
+                    summary = { Text(text = if (it) "On" else "Off") }
+                )
                 sliderPreference(
                     key = "recording_length",
                     defaultValue = Constants.RECORDING_LENGTH,

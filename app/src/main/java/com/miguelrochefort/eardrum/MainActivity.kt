@@ -8,9 +8,14 @@ import android.os.Bundle
 import android.preference.PreferenceManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.work.Data
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import pub.devrel.easypermissions.AfterPermissionGranted
 import pub.devrel.easypermissions.EasyPermissions
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 
 class MainActivity : ComponentActivity() {
@@ -118,6 +123,7 @@ class MainActivity : ComponentActivity() {
 
         if (EasyPermissions.hasPermissions(this, *perms)) {
             startAudioRecorderService()
+            runWorkers()
         } else {
             EasyPermissions.requestPermissions(
                 this,
@@ -138,11 +144,13 @@ class MainActivity : ComponentActivity() {
         val recordingInterval = sharedPreferences?.getFloat("recording_interval", Constants.RECORDING_INTERVAL)
         val mediaFormat = sharedPreferences?.getString("media_format", Constants.MEDIA_FORMAT)
         val apiEndpoint = sharedPreferences?.getString("api_endpoint", Constants.API_URL)
+        val onDevice = sharedPreferences?.getBoolean("on_device_processing", false)
         intent.putExtra("sensorID", sensorID)
         intent.putExtra("recordingLength", recordingLength)
         intent.putExtra("recordingInterval", recordingInterval)
         intent.putExtra("mediaFormat", mediaFormat)
         intent.putExtra("apiEndpoint", apiEndpoint)
+        intent.putExtra("onDeviceProcessing", onDevice)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)
         } else {
@@ -168,5 +176,26 @@ class MainActivity : ComponentActivity() {
         super.onPause()
         // Unregister the listener whenever a key changes
         sharedPreferences?.unregisterOnSharedPreferenceChangeListener(listener)
+    }
+
+    /*
+     * runWorkers
+     * --------------------------------
+     * Create a worker that does on device processing of recorded audio files
+     * in batches every interval.
+     */
+    private fun runWorkers() {
+        val onDeviceProcessingWorkRequest =
+            PeriodicWorkRequestBuilder<AudioProcessingWorker>(3, TimeUnit.HOURS)
+        val data = Data.Builder()
+        data.putString("api_url", sharedPreferences?.getString("api_endpoint", Constants.API_URL))
+        data.putString("media_format", sharedPreferences?.getString("media_format", Constants.MEDIA_FORMAT))
+        onDeviceProcessingWorkRequest.setInputData(data.build())
+
+        WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+            "EXECUTE_ON_DEVICE_PROCESSING",
+            ExistingPeriodicWorkPolicy.KEEP, // If there is an overlap in scheduled jobs, keep the running one
+            onDeviceProcessingWorkRequest.build()
+        )
     }
 }
