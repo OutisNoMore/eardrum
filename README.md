@@ -26,6 +26,7 @@ There are five main settings that can be accessed on the app main page
 3. Recording interval: Iterval between recordings
 4. Media format: Which format to save audio in
 5. API endpoint address: Address of server to upload to
+6. On device processing: Process audio files on device rather than on server
 
 ## Screenshot
 ![image](app2.png)
